@@ -11,3 +11,6 @@ This is a side project of mine that I am working on for fun. Currently I am foll
 - SUB
 - MULT
 - DIV
+- JMP (absolute)
+- JMPF (relative)
+- JMPB (relative)
