@@ -4,7 +4,7 @@ pub struct VM {
     registers: [i32; 32],   // Use an array because we know the size at compile time 
     pc: usize,              // The program counter
     program: Vec<u8>,       // A vector to store the program bytecode
-    remainder: u32,         // The remainder of dividing two numbers
+    remainder: u32,         // Contains the remainder of modulo division ops
 }
 
 impl VM {
@@ -72,6 +72,33 @@ impl VM {
                 self.registers[self.next_8_bits() as usize] = register1 /register2;
                 self.remainder = (register1 % register2) as u32;
 
+            },
+            Opcode::EQ => {
+                let register1 = self.registers[self.next_8_bits() as usize];
+                let register2 = self.registers[self.next_8_bits() as usize];
+
+                match register1 == register2 {
+                    true => self.registers[self.next_8_bits() as usize] = true as i32,
+                    _ => self.registers[self.next_8_bits() as usize] = false as i32,
+                }
+            },
+            Opcode::GT => {
+                let register1 = self.registers[self.next_8_bits() as usize];
+                let register2 = self.registers[self.next_8_bits() as usize];
+
+                match register1 > register2 {
+                    true => self.registers[self.next_8_bits() as usize] = true as i32,
+                    _ => self.registers[self.next_8_bits() as usize] = false as i32,
+                }
+            },
+            Opcode::LT => {
+                let register1 = self.registers[self.next_8_bits() as usize];
+                let register2 = self.registers[self.next_8_bits() as usize];
+
+                match register1 < register2 {
+                    true => self.registers[self.next_8_bits() as usize] = true as i32,
+                    _ => self.registers[self.next_8_bits() as usize] = false as i32,
+                }
             },
             Opcode::JMP => {
                 let target = self.registers[self.next_8_bits() as usize];
@@ -254,5 +281,65 @@ mod test {
         test_vm.program = vec![8, 0, 0, 0, 6, 0, 0, 0];
         test_vm.run_once();
         assert_eq!(test_vm.pc, 0);
+    }
+
+    #[test]
+    fn test_eq_opcode_not_eq() {
+        let mut test_vm = VM::new();
+        test_vm.registers[0] = 10;
+        test_vm.registers[1] = 8;
+        test_vm.program = vec![9, 0, 1, 3];
+        test_vm.run();
+        assert_eq!(test_vm.registers[3], 0);
+    }
+
+    #[test]
+    fn test_eq_opcode_equal() {
+        let mut test_vm = VM::new();
+        test_vm.registers[0] = 10;
+        test_vm.registers[1] = 10;
+        test_vm.program = vec![9, 0, 1, 3];
+        test_vm.run();
+        assert_eq!(test_vm.registers[3], 1);
+    }
+
+    #[test]
+    fn test_gt_opcode_not_greater() {
+        let mut test_vm = VM::new();
+        test_vm.registers[0] = 10;
+        test_vm.registers[1] = 90;
+        test_vm.program = vec![10, 0, 1, 3];
+        test_vm.run();
+        assert_eq!(test_vm.registers[3], 0);
+    }
+
+    #[test]
+    fn test_gt_opcode_greater() {
+        let mut test_vm = VM::new();
+        test_vm.registers[0] = 12;
+        test_vm.registers[1] = 8;
+        test_vm.program = vec![10, 0, 1, 3];
+        test_vm.run();
+        assert_eq!(test_vm.registers[3], 1);
+    }
+
+    #[test]
+    fn test_lt_opcode_not_lesser() {
+        let mut test_vm = VM::new();
+        test_vm.registers[0] = 10;
+        test_vm.registers[1] = 9;
+        test_vm.program = vec![11, 0, 1, 3];
+        test_vm.run();
+        assert_eq!(test_vm.registers[3], 0);
+    }
+
+    #[test]
+    fn test_lt_opcode_lesser() {
+        let mut test_vm = VM::new();
+        test_vm.registers[0] = 8;
+        test_vm.registers[1] = 9;
+        test_vm.program = vec![11, 0, 1, 3];
+        test_vm.run();
+        assert_eq!(test_vm.registers[3], 1);
     }
 }

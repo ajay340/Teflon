@@ -13,6 +13,13 @@ pub enum Opcode {
     JMP,        // Absolute Jump (changes the program counter relative to the VM)
     JMPF,       // Relative Jump Forward (changes the program counter relative to the current instruction)
     JMPB,       // Relative Jump backward
+    EQ,         // Equal
+    NEQ,        // Not Equal
+    GT,         // Greater Then
+    LT,         // Less Then
+    GQT,        // Greater or equal to
+    LQT,        // Less then or equal to
+    JEQ,        // Jump if equal to
     IGL,        // Illegal opcode
 }
 
@@ -43,6 +50,9 @@ impl From<u8> for Opcode {
             6 => Opcode::JMP,
             7 => Opcode::JMPF,
             8 => Opcode::JMPB,
+            9 => Opcode::EQ,
+            10 => Opcode::GT,
+            11 => Opcode::LT,
             _ => Opcode::IGL,
         }
     }
