@@ -7,7 +7,7 @@ This is a side project of mine that I am working on for fun. Currently I am foll
 ### Current Feature being worked on
 A Lexer to convert hex into Assembly.
 
-### Current Features
+## Current Features
 ### Opcode
 - HALT
 - LOAD
