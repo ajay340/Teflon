@@ -20,6 +20,7 @@ pub enum Opcode {
     GQT,        // Greater or equal to
     LQT,        // Less then or equal to
     JEQ,        // Jump if equal to
+    JNEQ,       // Jump if not equal to
     IGL,        // Illegal opcode
 }
 
@@ -53,6 +54,10 @@ impl From<u8> for Opcode {
             9 => Opcode::EQ,
             10 => Opcode::GT,
             11 => Opcode::LT,
+            12 => Opcode::GQT,
+            13 => Opcode::LQT,
+            14 => Opcode::JEQ,
+            15 => Opcode::JNEQ,
             _ => Opcode::IGL,
         }
     }
