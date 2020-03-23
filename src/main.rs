@@ -9,7 +9,7 @@ fn main() {
     //repl.run();
 
 
-    let mut l = lexer::Lexer::new("ADD $1 $2 $3");
+    let mut l = lexer::Lexer::new("LOAD $10 #786");
     let v = l.lex();
 
     println!("{:?}", v);
