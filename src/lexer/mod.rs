@@ -31,8 +31,6 @@ pub enum State {
 }
 
 
-// LOAD $1 #10
-// ADD $1 $2 $3
 impl Lexer {
     pub fn new() -> Lexer {
         Lexer {

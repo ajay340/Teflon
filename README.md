@@ -5,7 +5,7 @@ A register based virtual machine built using Rust.
 This is a side project of mine that I am working on for fun. Currently I am following a [tutorial](https://blog.subnetzero.io/post/building-language-vm-part-01/) to familiarize myself with vm’s. I plan on adding my own features and optimizations at a later date.
 
 ### Current Feature being worked on
-An Assembler, more specifically a Lexer.
+An Assembler, more specifically a Parser.
 
 ## Current Features
 ### Opcode
@@ -26,6 +26,9 @@ An Assembler, more specifically a Lexer.
 - JEQ
 - JNEQ
 - IGL
+
+### Lexer
+- Uses a Deterministic Finite State Automata for tokenizing
 
 ### REPL
 - .history :: Shows all commands that were entered into the REPL.
