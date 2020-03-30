@@ -10,9 +10,9 @@
 /* A Program is composed of:
  -  a list of instructions 
 */
-struct Program {
-    instructions: Vec<Instruction>,
-}
+// struct Program {
+//     instructions: Vec<Instruction>,
+// }
 
 
 /* A Instruction is composed of:
@@ -21,29 +21,29 @@ struct Program {
  - A Integer Operand
  - A Newline
 */ 
-struct Instruction {
-    opcode: Opcode,
-    register: Register,
-    operand: IntegerOperand,
-    newline: char,
-}
+// struct Instruction {
+//     opcode: Opcode,
+//     register: Register,
+//     operand: IntegerOperand,
+//     newline: char,
+// }
 
 /* A Register is composed of
  - The symbol $
  - A Number
  - A Space
 */
-struct Register {
-    number: Number,
-}
+// struct Register {
+//     number: Number,
+// }
 
 /* A IntegerOperand is composed og:
  - The symbol #
  - A Number
 */
-struct IntegerOperand {
-    number: Number,
-}
+// struct IntegerOperand {
+//     number: Number,
+// }
 
 
 
@@ -52,16 +52,16 @@ struct IntegerOperand {
     <digit> -> 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 
     <number> -> <digit> | <digit> <number>
 */
-struct Number {
-    number: u8,
-}
+// struct Number {
+//     number: u8,
+// }
 
 
 /* An opcode is composed of:
  - one or more letters in a row
  - A space
 */
-struct Opcode {
-    letters: String
-}
+// struct Opcode {
+//     letters: String
+// }
 

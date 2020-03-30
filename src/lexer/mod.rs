@@ -1,105 +1,125 @@
-use std::fs;
+//use std::fs;
 use std::iter::Peekable;
 
+
 pub struct Lexer {
-    line: String,
+    state: State,
+    val: String,
     tokens: Vec<Token>,
 }
 
+#[derive(Debug, PartialEq)]
 pub enum Token {
-    Operator(String),
-    Register(u8),
-    NumberToken(u8),
+    Opcode(String),
+    Register(String),
+    IntOperand(String),
+}
+
+
+    
+    
+    
+   
+pub enum State {
+    S,      /// S => No pattern has been detected
+    H,      /// H => Part of a Integer operand has been detected
+    D,      /// D => Part of a Register has been detected
+    O,      /// O => Part of a Opcode has been detected 
+    X,      /// An Opcode was detected
+    Y,      /// A Register was detected
+    Z,      // A Integer Operand was detected
 }
 
 
 // LOAD $1 #10
 // ADD $1 $2 $3
 impl Lexer {
-    pub fn new(line: &str) -> Lexer {
+    pub fn new() -> Lexer {
         Lexer {
-            line: String::from(line),
+            state: State::S,
+            val: String::from(""),
             tokens: Vec::new(),
         }
     }
 
-    pub fn lex(&mut self) -> Vec<String> {
-        
-        match Self::find_lexemes(&self.line) {
-            Ok(res) => res,
-            Err(_e) =>  {
-                Vec::new()
-            },
-        }
-    }
-
-    fn lex_line(&self) -> Vec<String> {
-        match Self::find_lexemes(&self.line) {
-            Ok(res) => res,
-            Err(_e) =>  {
-                Vec::new()
-            },
-        }
-    }
-
-    fn find_lexemes(line: &String) -> Result<Vec<String>, String> {
-        let mut lexemes: Vec<String> = Vec::new();
+    pub fn lex_line(&mut self, line: &str) {
         let mut it = line.chars().peekable();
 
-        while let Some(&c) = it.peek() {
-            match c {
-                'a'..='z' |  'A'..='Z' => {
-                    it.next();
-                    let op = Self::get_operator(c, &mut it);
-                    lexemes.push(op)
-                },
-                '$' => {
-                    it.next();
-                    lexemes.push(c.to_string());
-                },
-                '#' => {
-                    it.next();
-                    lexemes.push(c.to_string());
-                },
-                '0'..='9' => {
-                    it.next();
-                    lexemes.push(Self::get_number(c, &mut it));
-                },
-                ' ' => {
-                    it.next();
-                },
-                _ => return Err(format!("Unexpected character {}", c)),
-            }
+        while let Some(&val) = it.peek() {
+            Self::next_state(self, val, &mut it);
         }
-        Ok(lexemes)
     }
 
-    fn get_number<T: Iterator<Item = char>>(num: char, it: &mut Peekable<T>) -> String {
-        let mut full_number = String::from(num.to_string());
-        while let Some(&x) = it.peek() {
-            it.next(); // increment the iterator
-            match x {
-                '0'..='9' =>  {
-                    full_number.push(x);
-                }
-                _ => break
-            }
+
+    fn next_state<I: Iterator<Item= char>>(&mut self, c: char, it: &mut Peekable<I>) {
+        match self.state {
+            State::S => Self::s_state_transition(self, c, it),
+            State::H => Self::h_state_transition(self, it),
+            State::D => Self::d_state_transition(self, it),
+            State::O => Self::o_state_transition(self, it),
+            State::X => Self::reset_and_add_token(self, Token::Opcode(self.val.clone())),
+            State::Y => Self::reset_and_add_token(self, Token::Register(self.val.clone())),
+            State::Z => Self::reset_and_add_token(self, Token::IntOperand(self.val.clone())),
         }
-        full_number
     }
 
-    fn get_operator<T: Iterator<Item = char>>(c: char, it: &mut Peekable<T>) -> String {
-        let mut operator = String::from(c.to_string());
-        while let Some(&c) = it.peek() {
-            match c {
-                'a'..='z' |  'A'..='Z' => {
-                    it.next();
-                    operator.push(c)
-                },
-                _ => break,
-            }
+    fn s_state_transition<I: Iterator<Item=char>>(&mut self, c: char, it: &mut Peekable<I>) {
+        match c {
+            'a'..='z' | 'A'..='Z' => self.state = State::O,
+            '$' => {
+                it.next();
+                self.state = State::D;
+            },
+            '#' => {
+                it.next();
+                self.state = State::H;
+            },
+            _ => panic!("Invalid symbol {}, for state transition", c),
         }
-        operator
+    }
+    
+    fn h_state_transition<I: Iterator<Item= char>>(&mut self, it: &mut Peekable<I>) {
+        if let Some(c) = it.next() {
+            match c {
+                '0'..='9' => self.val.push(c),
+                '\n' => Self::reset_and_add_token(self, Token::IntOperand(self.val.clone())),
+                _ => panic!("Invalid symbol {}, at current position for integer operand", c),
+            }
+        } else {
+            panic!("Iterator does not have a next");
+        }
+    }
+
+    fn o_state_transition<I: Iterator<Item= char>>(&mut self, it: &mut Peekable<I>) {
+        if let Some(c) = it.next() {
+            match c {
+                'a'..='z' | 'A'..='Z' => self.val.push(c),
+                ' ' => self.state = State::X,
+                _ => panic!("Invalid symbol {}, at current position for opcode", c),
+            }
+        } else  {
+            panic!("Iterator does not have a next");
+        }
+    }
+
+
+    fn d_state_transition<I: Iterator<Item= char>>(&mut self, it: &mut Peekable<I>) {
+        if let Some(c) = it.next() {
+            match c {
+                '0'..='9' => self.val.push(c),
+                ' ' => self.state = State::Y,
+                '\n' => Self::reset_and_add_token(self, Token::Register(self.val.clone())),
+                _ => panic!("Invalid symbol {}, at current position for register", c),
+            }
+        } else {
+            panic!("Iterator does not have a next");
+        }
+    }
+
+    fn reset_and_add_token(&mut self, token: Token) {
+        self.tokens.push(token);
+        self.val = String::from("");
+        self.state = State::S
     }
 }
 
@@ -110,19 +130,36 @@ impl Lexer {
 mod test {
     use super::*;
 
+    #[macro_use]
+    macro_rules! to_String {
+        ($e:expr) => {
+            String::from($e)
+        };
+    }
+
+
     #[test]
     fn test_get_lexemes_for_load_instruction() {
-        let test_lexer = Lexer::new("LOAD $1 #1000");
-        let lexemes = test_lexer.lex_line();
-        let proper_lexemes = vec!["LOAD", "$", "1", "#", "1000"];
-        assert_eq!(lexemes, proper_lexemes);
+        let mut test_lexer = Lexer::new();
+        test_lexer.lex_line("LOAD $1 #1000\n");
+        let tokens = vec![
+            Token::Opcode(to_String!("LOAD")),
+            Token::Register(to_String!("1")),
+            Token::IntOperand(to_String!("1000"))
+        ];
+        assert_eq!(test_lexer.tokens, tokens);
     }
 
+    #[test]
     fn test_get_lexemes_for_add_instruction() {
-        let test_lexer = Lexer::new("ADD $1 $2 $3");
-        let lexemes = test_lexer.lex_line();
-        let proper_lexemes = vec!["ADD", "$", "1", "$", "2", "$", "3"];
-        assert_eq!(lexemes, proper_lexemes);
+        let mut test_lexer = Lexer::new();
+        test_lexer.lex_line("ADD $11 $2 $3\n");
+        let tokens = vec![
+            Token::Opcode(to_String!("ADD")),
+            Token::Register(to_String!("11")),
+            Token::Register(to_String!("2")),
+            Token::Register(to_String!("3"))
+        ];
+        assert_eq!(test_lexer.tokens, tokens);
     }
-
 }
