@@ -1,33 +1,19 @@
-//use std::fs;
-use std::iter::Peekable;
+mod token;
+use token::{ Token, TokenType };
 
-
+#[derive(Debug, PartialEq)]
 pub struct Lexer {
     state: State,
     val: String,
     tokens: Vec<Token>,
-}
-
-#[derive(Debug, PartialEq)]
-pub enum Token {
-    Opcode(String),
-    Register(String),
-    IntOperand(String),
-}
-
-
+}    
     
-    
-    
-   
+#[derive(Debug, PartialEq)]  
 pub enum State {
-    S,      /// S => No pattern has been detected
-    H,      /// H => Part of a Integer operand has been detected
-    D,      /// D => Part of a Register has been detected
-    O,      /// O => Part of a Opcode has been detected 
-    X,      /// An Opcode was detected
-    Y,      /// A Register was detected
-    Z,      // A Integer Operand was detected
+    S,      // S => No pattern has been detected
+    D,      // D => part of a number has been detected
+    O,      // O => part of a opcode has been detected
+    C,      // C => part of a comment has been detected
 }
 
 
@@ -42,82 +28,107 @@ impl Lexer {
 
     pub fn lex_line(&mut self, line: &str) {
         let mut it = line.chars().peekable();
-
-        while let Some(&val) = it.peek() {
-            Self::next_state(self, val, &mut it);
+        let mut line_number = 1;
+        while let Some(val) = it.next() {
+            if val == '\n' {
+                line_number+=1;
+            } else if it.peek() == None && val != ';' {
+                self.final_iteration(val, line_number);
+            } else {
+                self.next_state(val, line_number);
+            }   
         }
+        println!("{:?}", self);
+        self.tokens.push(Token::new(TokenType::EOF, line_number));
     }
 
 
-    fn next_state<I: Iterator<Item= char>>(&mut self, c: char, it: &mut Peekable<I>) {
+    fn next_state(&mut self, c: char, line_number: usize) {
         match self.state {
-            State::S => Self::s_state_transition(self, c, it),
-            State::H => Self::h_state_transition(self, it),
-            State::D => Self::d_state_transition(self, it),
-            State::O => Self::o_state_transition(self, it),
-            State::X => Self::reset_and_add_token(self, Token::Opcode(self.val.clone())),
-            State::Y => Self::reset_and_add_token(self, Token::Register(self.val.clone())),
-            State::Z => Self::reset_and_add_token(self, Token::IntOperand(self.val.clone())),
+            State::S => self.s_state_transition(c, line_number),
+            State::D => self.d_state_transition(c, line_number),
+            State::O => self.o_state_transition(c, line_number),
+            State::C => self.c_state_transition(c),
         }
     }
 
-    fn s_state_transition<I: Iterator<Item=char>>(&mut self, c: char, it: &mut Peekable<I>) {
+    fn s_state_transition(&mut self, c: char, line: usize) {
         match c {
-            'a'..='z' | 'A'..='Z' => self.state = State::O,
-            '$' => {
-                it.next();
+            'a'..='z' | 'A'..='Z' => {
+                self.val.push(c);
+                self.state = State::O;
+            },
+            '1'..='9' => {
+                self.val.push(c);
                 self.state = State::D;
             },
-            '#' => {
-                it.next();
-                self.state = State::H;
+            '$' => self.add_token(TokenType::REGISTER, line),
+            ';' => self.add_token(TokenType::SEMICOLON, line),
+            '#' => self.add_token(TokenType::IntOperand, line),
+            '<' => self.state = State::C,
+            '>' => (), //TODO: Better implementation
+            ' ' => (),
+            _ => panic!("Invalid symbol {} for state transition", c),
+        }
+    }
+
+    // A opcode has been detected
+    fn o_state_transition(&mut self, c: char, line: usize) {
+        match c {
+            'a'..='z' | 'A'..='Z' => self.val.push(c),
+            ';' => self.reset_and_add_token_with_semicolon(TokenType::OPCODE(self.val.clone()), line),
+            _ => self.reset_and_add_token(TokenType::OPCODE(self.val.clone()), line),
+        }
+    }
+
+    // An integer has been detected
+    fn d_state_transition(&mut self, c: char, line: usize) {
+        match c {
+            '0'..='9' => self.val.push(c),
+            ';' => self.reset_and_add_token_with_semicolon(TokenType::NUMBER(self.val.clone()), line),
+            _ => self.reset_and_add_token(TokenType::NUMBER(self.val.clone()), line),
+        }
+    }
+
+    fn c_state_transition(&mut self, c: char) {
+        match c {
+            '>' => self.state = State::S,
+            _ => (),
+        }
+    }
+
+    fn final_iteration(&mut self, c: char, line: usize) {
+        self.next_state(c, line);
+        match self.state {
+            State::S => (),
+            State::D => self.add_token(TokenType::NUMBER(self.val.clone()), line),
+            State::O => self.add_token(TokenType::OPCODE(self.val.clone()), line),
+            State::C => {
+                if c != '>' {
+                    panic!("Unterminated Comment block")
+                }
+                ()
             },
-            _ => panic!("Invalid symbol {}, for state transition", c),
-        }
-    }
-    
-    fn h_state_transition<I: Iterator<Item= char>>(&mut self, it: &mut Peekable<I>) {
-        if let Some(c) = it.next() {
-            match c {
-                '0'..='9' => self.val.push(c),
-                '\n' => Self::reset_and_add_token(self, Token::IntOperand(self.val.clone())),
-                _ => panic!("Invalid symbol {}, at current position for integer operand", c),
-            }
-        } else {
-            panic!("Iterator does not have a next");
         }
     }
 
-    fn o_state_transition<I: Iterator<Item= char>>(&mut self, it: &mut Peekable<I>) {
-        if let Some(c) = it.next() {
-            match c {
-                'a'..='z' | 'A'..='Z' => self.val.push(c),
-                ' ' => self.state = State::X,
-                _ => panic!("Invalid symbol {}, at current position for opcode", c),
-            }
-        } else  {
-            panic!("Iterator does not have a next");
-        }
+    fn add_token(&mut self, token_type: TokenType, line: usize) {
+        self.tokens.push(Token::new(token_type, line));
     }
 
-
-    fn d_state_transition<I: Iterator<Item= char>>(&mut self, it: &mut Peekable<I>) {
-        if let Some(c) = it.next() {
-            match c {
-                '0'..='9' => self.val.push(c),
-                ' ' => self.state = State::Y,
-                '\n' => Self::reset_and_add_token(self, Token::Register(self.val.clone())),
-                _ => panic!("Invalid symbol {}, at current position for register", c),
-            }
-        } else {
-            panic!("Iterator does not have a next");
-        }
+    fn reset_and_add_token(&mut self, token_type: TokenType, line: usize) {
+        self.tokens.push(Token::new(token_type, line));
+        self.reset_values();
     }
 
-    fn reset_and_add_token(&mut self, token: Token) {
-        self.tokens.push(token);
-        self.val = String::from("");
-        self.state = State::S
+    fn reset_and_add_token_with_semicolon(&mut self, token_type: TokenType, line: usize) {
+        self.reset_and_add_token(token_type, line);
+        self.tokens.push(Token::new(TokenType::SEMICOLON, line));
+    }
+
+    fn reset_values(&mut self) {
+        self.val= String::from("");
+        self.state = State::S;
     }
 }
 
@@ -139,11 +150,30 @@ mod test {
     #[test]
     fn test_get_lexemes_for_load_instruction() {
         let mut test_lexer = Lexer::new();
-        test_lexer.lex_line("LOAD $1 #1000\n");
+        test_lexer.lex_line("LOAD $1 #1000;");
         let tokens = vec![
-            Token::Opcode(to_String!("LOAD")),
-            Token::Register(to_String!("1")),
-            Token::IntOperand(to_String!("1000"))
+            Token::new(TokenType::OPCODE(to_String!("LOAD")), 1),
+            Token::new(TokenType::REGISTER, 1),
+            Token::new(TokenType::NUMBER(to_String!("1")), 1),
+            Token::new(TokenType::IntOperand, 1),
+            Token::new(TokenType::NUMBER(to_String!("1000")), 1),
+            Token::new(TokenType::SEMICOLON, 1),
+            Token::new(TokenType::EOF, 1),
+        ];
+        assert_eq!(test_lexer.tokens, tokens);
+    }
+
+    #[test]
+    fn test_get_lexemes_for_load_instruction_without_semicolon() {
+        let mut test_lexer = Lexer::new();
+        test_lexer.lex_line("LOAD $1 #1000");
+        let tokens = vec![
+            Token::new(TokenType::OPCODE(to_String!("LOAD")), 1),
+            Token::new(TokenType::REGISTER, 1),
+            Token::new(TokenType::NUMBER(to_String!("1")), 1),
+            Token::new(TokenType::IntOperand, 1),
+            Token::new(TokenType::NUMBER(to_String!("1000")), 1),
+            Token::new(TokenType::EOF, 1),
         ];
         assert_eq!(test_lexer.tokens, tokens);
     }
@@ -151,13 +181,47 @@ mod test {
     #[test]
     fn test_get_lexemes_for_add_instruction() {
         let mut test_lexer = Lexer::new();
-        test_lexer.lex_line("ADD $11 $2 $3\n");
+        test_lexer.lex_line("ADD $11 $2 $3;");
         let tokens = vec![
-            Token::Opcode(to_String!("ADD")),
-            Token::Register(to_String!("11")),
-            Token::Register(to_String!("2")),
-            Token::Register(to_String!("3"))
+            Token::new(TokenType::OPCODE(to_String!("ADD")), 1),
+            Token::new(TokenType::REGISTER, 1),
+            Token::new(TokenType::NUMBER(to_String!("11")), 1),
+            Token::new(TokenType::REGISTER, 1),
+            Token::new(TokenType::NUMBER(to_String!("2")), 1),
+            Token::new(TokenType::REGISTER, 1),
+            Token::new(TokenType::NUMBER(to_String!("3")), 1),
+            Token::new(TokenType::SEMICOLON, 1),
+            Token::new(TokenType::EOF, 1),
         ];
         assert_eq!(test_lexer.tokens, tokens);
     }
+
+    #[test]
+    fn test_comment() {
+        let mut test_lexer = Lexer::new();
+        test_lexer.lex_line("< Hello for a comment >");
+        let tokens = vec![
+            Token::new(TokenType::EOF, 1),
+        ];
+        assert_eq!(test_lexer.tokens, tokens);
+    }
+
+    #[test]
+    fn test_comment_with_code() {
+        let mut test_lexer = Lexer::new();
+        test_lexer.lex_line("ADD $11 $2 $3; <this code should work>");
+        let tokens = vec![
+            Token::new(TokenType::OPCODE(to_String!("ADD")), 1),
+            Token::new(TokenType::REGISTER, 1),
+            Token::new(TokenType::NUMBER(to_String!("11")), 1),
+            Token::new(TokenType::REGISTER, 1),
+            Token::new(TokenType::NUMBER(to_String!("2")), 1),
+            Token::new(TokenType::REGISTER, 1),
+            Token::new(TokenType::NUMBER(to_String!("3")), 1),
+            Token::new(TokenType::SEMICOLON, 1),
+            Token::new(TokenType::EOF, 1),
+        ];
+        assert_eq!(test_lexer.tokens, tokens);
+    }
+
 }
