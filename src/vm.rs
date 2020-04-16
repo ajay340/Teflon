@@ -2,9 +2,9 @@ use crate::instructions::Opcode;
 
 pub struct VM {
     pub registers: [i32; 32],   // Use an array because we know the size at compile time 
-    pc: usize,              // The program counter
+    pc: usize,                  // The program counter
     pub program: Vec<u8>,       // A vector to store the program bytecode
-    remainder: u32,         // Contains the remainder of modulo division ops
+    remainder: u32,             // Contains the remainder of modulo division ops
 }
 
 impl VM {

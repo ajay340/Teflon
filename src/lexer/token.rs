@@ -3,7 +3,6 @@
 pub enum TokenType {    // EX:
     OPCODE(String),     // Load
     NUMBER(String),     // 23
-    SEMICOLON,          // ;
     REGISTER,           // $
     IntOperand,         // #
     EOF,                // End of file

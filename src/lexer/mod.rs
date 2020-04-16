@@ -1,11 +1,14 @@
 mod token;
 use token::{ Token, TokenType };
+use std::fs::File;
+use std::io::BufReader;
+use std::io::prelude::*;
 
 #[derive(Debug, PartialEq)]
 pub struct Lexer {
     state: State,
     val: String,
-    tokens: Vec<Token>,
+    pub tokens: Vec<Token>,
 }    
     
 #[derive(Debug, PartialEq)]  
@@ -26,22 +29,38 @@ impl Lexer {
         }
     }
 
-    pub fn lex_line(&mut self, line: &str) {
-        let mut it = line.chars().peekable();
+    pub fn lex_file(&mut self, path: String) {
+        let f = File::open(path).expect("File does not exist");
+        let buf_reader = BufReader::new(f);        
         let mut line_number = 1;
+
+        for line in buf_reader.lines() {
+            match line {
+                Ok(line) => self.lex_line(&line, line_number),
+                Err(e) => panic!("Error reading line: {}", e),
+            }
+            line_number += 1;
+        }
+        self.tokens.push(Token::new(TokenType::EOF, line_number));
+    }
+
+    pub fn lex_line(&mut self, line: &str, line_number: usize) {
+        let mut it = line.chars().peekable();
         while let Some(val) = it.next() {
-            if val == '\n' {
-                line_number+=1;
-            } else if it.peek() == None && val != ';' {
+            if it.peek() == None {
                 self.final_iteration(val, line_number);
             } else {
                 self.next_state(val, line_number);
             }   
         }
-        println!("{:?}", self);
-        self.tokens.push(Token::new(TokenType::EOF, line_number));
     }
 
+    #[allow(dead_code)]
+    // Lex's a single line. This fuction is just used for testing
+    fn lex_single_line(&mut self, line: &str) {
+        self.lex_line(line, 1);
+        self.tokens.push(Token::new(TokenType::EOF, 1));
+    }
 
     fn next_state(&mut self, c: char, line_number: usize) {
         match self.state {
@@ -63,12 +82,11 @@ impl Lexer {
                 self.state = State::D;
             },
             '$' => self.add_token(TokenType::REGISTER, line),
-            ';' => self.add_token(TokenType::SEMICOLON, line),
             '#' => self.add_token(TokenType::IntOperand, line),
             '<' => self.state = State::C,
-            '>' => (), //TODO: Better implementation
-            ' ' => (),
-            _ => panic!("Invalid symbol {} for state transition", c),
+            '\n' | '\r' | ' ' => (),
+            '>' => panic!("Invalid position for: > at line {}", line),
+            _ => panic!("Invalid symbol {} for state transition at line: {}", c, line),
         }
     }
 
@@ -76,8 +94,7 @@ impl Lexer {
     fn o_state_transition(&mut self, c: char, line: usize) {
         match c {
             'a'..='z' | 'A'..='Z' => self.val.push(c),
-            ';' => self.reset_and_add_token_with_semicolon(TokenType::OPCODE(self.val.clone()), line),
-            _ => self.reset_and_add_token(TokenType::OPCODE(self.val.clone()), line),
+            _ => self.reset_and_add_token(TokenType::OPCODE(self.val.clone()), line, c),
         }
     }
 
@@ -85,8 +102,7 @@ impl Lexer {
     fn d_state_transition(&mut self, c: char, line: usize) {
         match c {
             '0'..='9' => self.val.push(c),
-            ';' => self.reset_and_add_token_with_semicolon(TokenType::NUMBER(self.val.clone()), line),
-            _ => self.reset_and_add_token(TokenType::NUMBER(self.val.clone()), line),
+            _ => self.reset_and_add_token(TokenType::NUMBER(self.val.clone()), line, c),
         }
     }
 
@@ -105,7 +121,7 @@ impl Lexer {
             State::O => self.add_token(TokenType::OPCODE(self.val.clone()), line),
             State::C => {
                 if c != '>' {
-                    panic!("Unterminated Comment block")
+                    panic!("Unterminated Comment block at line: {}", line)
                 }
                 ()
             },
@@ -116,14 +132,10 @@ impl Lexer {
         self.tokens.push(Token::new(token_type, line));
     }
 
-    fn reset_and_add_token(&mut self, token_type: TokenType, line: usize) {
+    fn reset_and_add_token(&mut self, token_type: TokenType, line: usize, c: char) {
         self.tokens.push(Token::new(token_type, line));
         self.reset_values();
-    }
-
-    fn reset_and_add_token_with_semicolon(&mut self, token_type: TokenType, line: usize) {
-        self.reset_and_add_token(token_type, line);
-        self.tokens.push(Token::new(TokenType::SEMICOLON, line));
+        self.next_state(c, line);
     }
 
     fn reset_values(&mut self) {
@@ -150,23 +162,7 @@ mod test {
     #[test]
     fn test_get_lexemes_for_load_instruction() {
         let mut test_lexer = Lexer::new();
-        test_lexer.lex_line("LOAD $1 #1000;");
-        let tokens = vec![
-            Token::new(TokenType::OPCODE(to_String!("LOAD")), 1),
-            Token::new(TokenType::REGISTER, 1),
-            Token::new(TokenType::NUMBER(to_String!("1")), 1),
-            Token::new(TokenType::IntOperand, 1),
-            Token::new(TokenType::NUMBER(to_String!("1000")), 1),
-            Token::new(TokenType::SEMICOLON, 1),
-            Token::new(TokenType::EOF, 1),
-        ];
-        assert_eq!(test_lexer.tokens, tokens);
-    }
-
-    #[test]
-    fn test_get_lexemes_for_load_instruction_without_semicolon() {
-        let mut test_lexer = Lexer::new();
-        test_lexer.lex_line("LOAD $1 #1000");
+        test_lexer.lex_single_line("LOAD $1 #1000");
         let tokens = vec![
             Token::new(TokenType::OPCODE(to_String!("LOAD")), 1),
             Token::new(TokenType::REGISTER, 1),
@@ -181,7 +177,7 @@ mod test {
     #[test]
     fn test_get_lexemes_for_add_instruction() {
         let mut test_lexer = Lexer::new();
-        test_lexer.lex_line("ADD $11 $2 $3;");
+        test_lexer.lex_single_line("ADD $11 $2 $3");
         let tokens = vec![
             Token::new(TokenType::OPCODE(to_String!("ADD")), 1),
             Token::new(TokenType::REGISTER, 1),
@@ -190,7 +186,6 @@ mod test {
             Token::new(TokenType::NUMBER(to_String!("2")), 1),
             Token::new(TokenType::REGISTER, 1),
             Token::new(TokenType::NUMBER(to_String!("3")), 1),
-            Token::new(TokenType::SEMICOLON, 1),
             Token::new(TokenType::EOF, 1),
         ];
         assert_eq!(test_lexer.tokens, tokens);
@@ -199,7 +194,7 @@ mod test {
     #[test]
     fn test_comment() {
         let mut test_lexer = Lexer::new();
-        test_lexer.lex_line("< Hello for a comment >");
+        test_lexer.lex_single_line("< Hello for a comment >");
         let tokens = vec![
             Token::new(TokenType::EOF, 1),
         ];
@@ -209,7 +204,7 @@ mod test {
     #[test]
     fn test_comment_with_code() {
         let mut test_lexer = Lexer::new();
-        test_lexer.lex_line("ADD $11 $2 $3; <this code should work>");
+        test_lexer.lex_single_line("ADD $11 $2 $3 <this code should work>");
         let tokens = vec![
             Token::new(TokenType::OPCODE(to_String!("ADD")), 1),
             Token::new(TokenType::REGISTER, 1),
@@ -218,10 +213,8 @@ mod test {
             Token::new(TokenType::NUMBER(to_String!("2")), 1),
             Token::new(TokenType::REGISTER, 1),
             Token::new(TokenType::NUMBER(to_String!("3")), 1),
-            Token::new(TokenType::SEMICOLON, 1),
             Token::new(TokenType::EOF, 1),
         ];
         assert_eq!(test_lexer.tokens, tokens);
     }
-
 }
