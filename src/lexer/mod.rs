@@ -1,5 +1,5 @@
 mod token;
-use token::{ Token, TokenType };
+use token::{ Token, TokenType, Error, LexerError };
 use std::fs::File;
 use std::io::BufReader;
 use std::io::prelude::*;
@@ -9,6 +9,7 @@ pub struct Lexer {
     state: State,
     val: String,
     pub tokens: Vec<Token>,
+    errors: Vec<LexerError>
 }    
     
 #[derive(Debug, PartialEq)]  
@@ -26,6 +27,7 @@ impl Lexer {
             state: State::S,
             val: String::from(""),
             tokens: Vec::new(),
+            errors: Vec::new(),
         }
     }
 
@@ -55,8 +57,15 @@ impl Lexer {
         }
     }
 
+
+    pub fn lex_debug(&self) {
+        for token in &self.tokens {
+            println!("{:?}", token);
+        }
+    }
+
     #[allow(dead_code)]
-    // Lex's a single line. This fuction is just used for testing
+    // Lex's a single line. This function is just used for testing
     fn lex_single_line(&mut self, line: &str) {
         self.lex_line(line, 1);
         self.tokens.push(Token::new(TokenType::EOF, 1));
@@ -85,8 +94,8 @@ impl Lexer {
             '#' => self.add_token(TokenType::IntOperand, line),
             '<' => self.state = State::C,
             '\n' | '\r' | ' ' => (),
-            '>' => panic!("Invalid position for: > at line {}", line),
-            _ => panic!("Invalid symbol {} for state transition at line: {}", c, line),
+            '>' => self.errors.push(LexerError::new(Error::CommentError(line))),
+            _ => self.errors.push(LexerError::new(Error::TokenError(line, c))),
         }
     }
 
@@ -121,7 +130,7 @@ impl Lexer {
             State::O => self.add_token(TokenType::OPCODE(self.val.clone()), line),
             State::C => {
                 if c != '>' {
-                    panic!("Unterminated Comment block at line: {}", line)
+                    self.errors.push(LexerError::new(Error::CommentError(line)))
                 }
                 ()
             },
@@ -216,5 +225,44 @@ mod test {
             Token::new(TokenType::EOF, 1),
         ];
         assert_eq!(test_lexer.tokens, tokens);
+    }
+
+    #[test]
+    fn test_invalid_symbol_percent() {
+        let mut test_lexer = Lexer::new();
+        test_lexer.lex_single_line("ADD $11 $2% $3 <this code should work>");
+        let tokens = vec![
+            Token::new(TokenType::OPCODE(to_String!("ADD")), 1),
+            Token::new(TokenType::REGISTER, 1),
+            Token::new(TokenType::NUMBER(to_String!("11")), 1),
+            Token::new(TokenType::REGISTER, 1),
+            Token::new(TokenType::NUMBER(to_String!("2")), 1),
+            Token::new(TokenType::REGISTER, 1),
+            Token::new(TokenType::NUMBER(to_String!("3")), 1),
+            Token::new(TokenType::EOF, 1),
+        ];
+        let errors = vec![LexerError::new(Error::TokenError(1, '%'))];
+        assert_eq!(test_lexer.tokens, tokens);
+        assert_eq!(test_lexer.errors, errors);
+    }
+
+    #[test]
+    fn test_invalid_comment_error() {
+        let mut test_lexer = Lexer::new();
+        test_lexer.lex_single_line("ADD $11 $2 $3 <this code should work");
+        let tokens = vec![
+            Token::new(TokenType::OPCODE(to_String!("ADD")), 1),
+            Token::new(TokenType::REGISTER, 1),
+            Token::new(TokenType::NUMBER(to_String!("11")), 1),
+            Token::new(TokenType::REGISTER, 1),
+            Token::new(TokenType::NUMBER(to_String!("2")), 1),
+            Token::new(TokenType::REGISTER, 1),
+            Token::new(TokenType::NUMBER(to_String!("3")), 1),
+            Token::new(TokenType::EOF, 1),
+        ];
+        let errors = vec![LexerError::new(Error::CommentError(1))];
+
+        assert_eq!(test_lexer.tokens, tokens);
+        assert_eq!(test_lexer.errors, errors);
     }
 }

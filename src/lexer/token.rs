@@ -1,3 +1,5 @@
+use std::fmt::{Display, Formatter, Debug, Result};
+use std::error;
 
 #[derive(Debug, PartialEq)]
 pub enum TokenType {    // EX:
@@ -21,5 +23,39 @@ impl Token {
             token,
             line,
         }
+    }
+}
+
+#[derive(PartialEq)]
+pub enum Error {
+    TokenError(usize, char),
+    CommentError(usize),
+}
+
+#[derive(PartialEq)]
+pub struct LexerError {
+    err: Error
+}
+
+impl LexerError {
+    pub fn new(err: Error) -> LexerError {
+        LexerError {
+            err
+        }
+    }
+}
+
+impl Display for LexerError {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        match self.err {
+            Error::TokenError(line, c) => write!(f, "An error occurred lexing token {} on line {}", line, c),
+            Error::CommentError(line) => write!(f, "Invalid comment block on line {}", line),
+        }
+    }
+}
+
+impl Debug for LexerError {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        write!(f, "{{ file: {}, line: {} }}", file!(), line!())
     }
 }
