@@ -1,4 +1,4 @@
-mod token;
+pub mod token;
 use token::{ Token, TokenType, Error, LexerError };
 use std::fs::File;
 use std::io::BufReader;
@@ -153,7 +153,9 @@ impl Lexer {
     }
 }
 
-
+pub fn makeString(expr:&str) -> String{
+    return expr.into()
+}
 
 
 #[cfg(test)]
