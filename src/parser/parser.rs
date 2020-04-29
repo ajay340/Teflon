@@ -1,26 +1,47 @@
 use crate::lexer;
+use std::fmt;
 
-fn grammar(expr:&str, line:usize) ->lexer::token::Token{
-    match expr {
-        "add" => lexer::token::Token::new(lexer::token::TokenType::OPCODE(lexer::makeString("ADD")), line),
-        expr if expr.chars().next().unwrap() == '$' => lexer::token::Token::new(lexer::token::TokenType::REGISTER, line),
-        expr if expr.chars().next().unwrap() == '#' => lexer::token::Token::new(lexer::token::TokenType::IntOperand, line),
-        expr if String::from(expr).parse::<f64>().is_ok() => lexer::token::Token::new(lexer::token::TokenType::NUMBER(lexer::makeString(expr)), line),     
-        _ => panic!("Expression {:?} not found", expr)
+#[derive(Debug)]
+pub struct AbstractSyntaxTree {
+    tokens: Vec<lexer::token::Token>,
+    tree:   Vec<Binary>,
+    index: usize,
+}
+
+#[derive(Debug)]
+struct Binary {
+    operator: lexer::token::TokenType,
+    left: lexer::token::TokenType,
+    right: lexer::token::TokenType,
+}
+
+
+impl Binary{
+    fn new(op: lexer::token::TokenType, left: lexer::token::TokenType, right:lexer::token::TokenType) -> Binary{
+        Binary{operator:op, left:left, right:right}
     }
 }
 
-pub fn tokenize(program:&str) ->Vec<lexer::token::Token>{
-    let mut tokens:Vec<lexer::token::Token> = vec![];
-    let exprs: Vec<&str> = program.split(" ").collect();
-    let mut line:usize = 1; 
-    for expr in exprs.iter() {
-        if expr == &"\\n"{
-            line += 1;
-        } else{
-            tokens.push(grammar(expr, line));
+impl AbstractSyntaxTree {
+    pub fn new(lex_tokens: Vec<lexer::token::Token>) -> AbstractSyntaxTree {
+        AbstractSyntaxTree {
+            tokens: lex_tokens,
+            index: 0,
+            tree: vec![],
         }
     }
-    tokens.push(lexer::token::Token::new(lexer::token::TokenType::EOF, line));
-    return tokens
+    pub fn parse(mut self){
+        for token in self.tokens{
+            match &token.token{
+                lexer::token::TokenType::EOF => println!("END OF FILE"),
+                lexer::token::TokenType::IntOperand => println!("INTEGER INCOMING"),
+                lexer::token::TokenType::NUMBER(NUMBER) => println!("NUMBER OP"),
+                lexer::token::TokenType::OPCODE(ADD) => 
+                    self.tree.push(Binary::new(token.token,lexer::token::TokenType::EOF, lexer::token::TokenType::EOF)),
+                lexer::token::TokenType::REGISTER => println!("REGISTER INCOMING"),
+                _ => println!("{:?}",token.token)
+            }
+        }
+    }
 }
+// Instruction ::= <opcode> ‘$’ <register>  ‘$’<register>  ‘$’ <register>  | <opcode> ‘$’ <register> ‘#’ <int operand>  | <opcode> ‘#’ <int operand>

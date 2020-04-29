@@ -13,8 +13,8 @@ pub enum TokenType {    // EX:
 
 #[derive(Debug, PartialEq)]
 pub struct Token {
-    token: TokenType,
-    line: usize,
+    pub token: TokenType,
+    pub line: usize,
 }
 
 impl Token {
